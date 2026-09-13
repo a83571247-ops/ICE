@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>물 분자 ↔ 눈 결정 결정화 상변화 시뮬레이션</title>
+    <title>단계별 물 ↔ 눈 결정 관찰 시뮬레이션</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050b14; font-family: sans-serif; }
         #canvas-container { width: 100vw; height: 100vh; }
         #ui-panel {
             position: absolute; top: 20px; right: 20px;
             background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 20px; border-radius: 12px; color: white; width: 300px; backdrop-filter: blur(8px);
+            padding: 20px; border-radius: 12px; color: white; width: 310px; backdrop-filter: blur(8px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
         .control-group { margin-bottom: 12px; }
@@ -28,6 +28,7 @@
         button:hover { background: #3b82f6; }
         .reset-btn { background: #ef4444; }
         .reset-btn:hover { background: #f87171; }
+        .zoom-info { font-size: 15px; font-weight: bold; color: #38bdf8; text-align: right; }
         #info-text { font-size: 11px; color: #94a3b8; line-height: 1.4; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; }
     </style>
     <!-- Three.js 및 OrbitControls 로드 -->
@@ -37,37 +38,42 @@
 <body>
     <div id="canvas-container"></div>
     <div id="ui-panel">
-        <h3 style="margin-top:0; color:#38bdf8;">상변화 시뮬레이션</h3>
+        <h3 style="margin-top:0; color:#38bdf8;">상변화 및 관찰 시뮬레이션</h3>
         
-        <!-- 1. 온도 조절 -->
+        <!-- 온도 조절 -->
         <div class="control-group">
             <label>온도 조절: <span id="temp-val" style="color:#38bdf8; font-weight:bold;">4°C</span></label>
             <input type="range" id="temp-slider" min="-20" max="40" value="4" step="1">
         </div>
 
-        <!-- 2. 분자 수 조절 -->
+        <!-- 분자 수 조절 -->
         <div class="control-group">
             <label>물 분자 수:</label>
             <input type="number" id="molecule-count" min="6" max="150" value="6" step="6">
         </div>
 
-        <!-- 3. 확대/축소 바 (줌) -->
+        <!-- 확대/축소 및 비율(%) 표시 -->
         <div class="control-group">
-            <label>확대/축소 (시점):</label>
-            <input type="range" id="zoom-slider" min="5" max="80" value="15" step="0.5">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="margin: 0;">확대/축소:</label>
+                <span id="zoom-percent" class="zoom-info">100%</span>
+            </div>
+            <input type="range" id="zoom-slider" min="5" max="120" value="15" step="0.5">
         </div>
 
-        <!-- 컨트롤 버튼 -->
+        <!-- 재생/멈춤/리셋 버튼 -->
         <div class="control-group btn-group">
-            <button id="btn-play">▶ 재생 (냉각 시뮬레이션)</button>
+            <button id="btn-play">▶ 재생 (강하)</button>
             <button id="btn-pause">⏸ 멈춤</button>
         </div>
         <button id="btn-reset" class="reset-btn" style="width:100%;">🔄 초기화</button>
 
         <div id="info-text">
-            * <b>▶ 재생:</b> 4°C에서 온도가 내려가며 눈 결정 성장<br>
-            * <b>0°C 초과:</b> 눈 결정 생성 불가 (액체상태)<br>
-            * <b>0°C 이하 + 줌아웃:</b> 서서히 형성된 눈 결정 관찰
+            * <b>배율 단계별 관찰:</b><br>
+            - 500%+ : 미시 H₂O 분자<br>
+            - 200%~500% : 현미경 가시 결정 돋아남<br>
+            - 80%~200% : 6각 대칭 눈 결정<br>
+            - 80%- : 육안 관찰 (동근 눈송이)
         </div>
     </div>
 
@@ -75,10 +81,10 @@
         // 1. Scene / Camera / Renderer 설정
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x050b14, 0.015);
+        scene.fog = new THREE.FogExp2(0x050b14, 0.01);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 15);
+        camera.position.set(0, 0, 15); // 기준 거리 15 = 100% 배율
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -86,32 +92,36 @@
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.minDistance = 5;
-        controls.maxDistance = 80;
+        controls.minDistance = 3;
+        controls.maxDistance = 120;
 
-        // 조명 설정
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        // 조명
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0x38bdf8, 2, 80);
-        pointLight.position.set(10, 10, 10);
+        const pointLight = new THREE.PointLight(0x38bdf8, 2, 100);
+        pointLight.position.set(10, 10, 15);
         scene.add(pointLight);
 
-        // 2. 변수 정의
+        // 2. 오브젝트 그룹
         let isPlaying = false;
-        let isCooling = false; // 재생 시 자동 냉각 진행 여부
+        let isCooling = false;
         let currentTemp = 4;
         let molecules = [];
-        let crystalBranches = []; // 성장 효과를 위한 가지 요소 배열
-        
-        const moleculeGroup = new THREE.Group();
-        const crystalGroup = new THREE.Group();
-        scene.add(moleculeGroup);
-        scene.add(crystalGroup);
+        let crystalBranches = [];
 
-        // 3. 물 분자(H2O) 생성
+        const moleculeGroup = new THREE.Group();  // 1. 미시 분자
+        const needleGroup = new THREE.Group();    // 2. 가시 돋아남 (현미경 영역)
+        const crystalGroup = new THREE.Group();   // 3. 눈 결정 (거시 구조)
+        const macroSnowGroup = new THREE.Group(); // 4. 동그란 눈송이 (육안 영역)
+
+        scene.add(moleculeGroup);
+        scene.add(needleGroup);
+        scene.add(crystalGroup);
+        scene.add(macroSnowGroup);
+
+        // 3. 미시 H2O 분자 생성
         function createWaterMolecule() {
             const group = new THREE.Group();
-
             const oGeo = new THREE.SphereGeometry(0.3, 16, 16);
             const oMat = new THREE.MeshPhongMaterial({ color: 0xef4444, transparent: true, opacity: 1 });
             const oMesh = new THREE.Mesh(oGeo, oMat);
@@ -127,46 +137,54 @@
             
             group.add(h1);
             group.add(h2);
-
             return group;
         }
 
-        // 4. 눈 결정(Snowflake) 구조 생성 (동적 성장 지원)
+        // 4. 가시 돋아남 구조 (현미경 가시 결정)
+        function createNeedleMesh() {
+            needleGroup.clear();
+            const mat = new THREE.MeshPhongMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0 });
+            for (let i = 0; i < 6; i++) {
+                const angle = (i / 6) * Math.PI * 2;
+                const needleGeo = new THREE.ConeGeometry(0.15, 2.5, 8);
+                needleGeo.translate(0, 1.25, 0);
+                const needle = new THREE.Mesh(needleGeo, mat.clone());
+                needle.rotation.z = angle - Math.PI / 2;
+                needleGroup.add(needle);
+            }
+        }
+        createNeedleMesh();
+
+        // 5. 정밀 눈 결정 구조 생성
         function createSnowflakeMesh() {
             crystalGroup.clear();
             crystalBranches = [];
 
             const material = new THREE.MeshPhongMaterial({ 
-                color: 0x38bdf8, 
-                side: THREE.DoubleSide, 
-                transparent: true, 
-                opacity: 0,
-                shininess: 90 
+                color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0, shininess: 90 
             });
-
             const snowflake = new THREE.Group();
             
             for (let i = 0; i < 6; i++) {
                 const branch = new THREE.Group();
                 const angle = (i / 6) * Math.PI * 2;
 
-                const stemGeo = new THREE.BoxGeometry(0.2, 8, 0.1);
-                // 성장 애니메이션용 변환 기준 축 조정
-                stemGeo.translate(0, 4, 0);
+                const stemGeo = new THREE.BoxGeometry(0.15, 7, 0.08);
+                stemGeo.translate(0, 3.5, 0);
                 const stem = new THREE.Mesh(stemGeo, material.clone());
                 branch.add(stem);
                 crystalBranches.push({ mesh: stem, type: 'stem' });
 
                 for (let j = 1; j <= 3; j++) {
-                    const subGeo = new THREE.BoxGeometry(0.15, 2.5, 0.1);
-                    subGeo.translate(0, 1.25, 0);
+                    const subGeo = new THREE.BoxGeometry(0.1, 2.0, 0.08);
+                    subGeo.translate(0, 1.0, 0);
 
                     const sub1 = new THREE.Mesh(subGeo, material.clone());
-                    sub1.position.set(0.2, j * 1.8, 0);
+                    sub1.position.set(0.15, j * 1.6, 0);
                     sub1.rotation.z = -Math.PI / 4;
 
                     const sub2 = new THREE.Mesh(subGeo, material.clone());
-                    sub2.position.set(-0.2, j * 1.8, 0);
+                    sub2.position.set(-0.15, j * 1.6, 0);
                     sub2.rotation.z = Math.PI / 4;
 
                     branch.add(sub1);
@@ -182,7 +200,17 @@
         }
         createSnowflakeMesh();
 
-        // 5. 물 분자 초기화
+        // 6. 육안용 동그란 눈송이 입자 생성
+        function createMacroSnowMesh() {
+            macroSnowGroup.clear();
+            const geo = new THREE.SphereGeometry(1.2, 32, 32);
+            const mat = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0, shininess: 30 });
+            const ball = new THREE.Mesh(geo, mat);
+            macroSnowGroup.add(ball);
+        }
+        createMacroSnowMesh();
+
+        // 7. 분자 초기화
         function initMolecules(count) {
             molecules.forEach(m => moleculeGroup.remove(m));
             molecules = [];
@@ -194,19 +222,15 @@
                 const radiusOffset = layer * 1.2;
 
                 const mol = createWaterMolecule();
-                mol.userData = { 
-                    baseAngle: angle,
-                    radiusOffset: radiusOffset
-                };
+                mol.userData = { baseAngle: angle, radiusOffset: radiusOffset };
                 moleculeGroup.add(mol);
                 molecules.push(mol);
             }
         }
         initMolecules(6);
 
-        // 6. 물리 연산 및 온도/성장 업데이트
+        // 8. 물리 연산 및 결정 성장 업데이트
         function updatePhysics() {
-            // 재생 중이면서 자동 냉각인 경우 온도 차츰 감소
             if (isPlaying && isCooling) {
                 if (currentTemp > -15) {
                     currentTemp -= 0.05;
@@ -215,9 +239,9 @@
                 }
             }
 
-            // 분자 개별 운동 업데이트
+            // 미시 분자 연산
             molecules.forEach((mol) => {
-                const layerRad = 1.5 + mol.userData.radiusOffset;
+                const layerRad = 1.2 + mol.userData.radiusOffset;
 
                 if (currentTemp > 4) {
                     const speed = (currentTemp - 4) * 0.003;
@@ -239,12 +263,18 @@
                 }
             });
 
-            // 눈 결정 스케일 및 성장률 계산 (0°C 이하일 때만 진행)
+            // 성장 계수 (0°C 이하일 때 결정 자람)
             let growthFactor = 0;
             if (currentTemp <= 0) {
-                growthFactor = Math.min(1, Math.max(0, (0 - currentTemp) / 15)); // 0°C -> -15°C 로 가면서 완성
+                growthFactor = Math.min(1, Math.max(0, (0 - currentTemp) / 15));
             }
 
+            // 현미경 가시 돋아남 스케일
+            needleGroup.children.forEach(needle => {
+                needle.scale.set(growthFactor, growthFactor, growthFactor);
+            });
+
+            // 눈 결정 스케일
             crystalBranches.forEach((b) => {
                 if (b.type === 'stem') {
                     b.mesh.scale.set(1, growthFactor, 1);
@@ -255,36 +285,63 @@
             });
 
             crystalGroup.rotation.z += 0.002;
+            needleGroup.rotation.z += 0.002;
         }
 
-        // 7. 시점 및 온도별 눈 결정 노출 여부 조절
-        function updateVisibility() {
+        // 9. 시점(확대 비율 %) 및 온도별 4단계 시각화 페이드 로직
+        function updateVisibilityAndZoomUI() {
             const dist = camera.position.distanceTo(scene.position);
             document.getElementById('zoom-slider').value = dist;
 
-            // 시점에 따른 페이드 비율 (거리 15~40 구간)
-            let zoomFade = Math.max(0, Math.min(1, (dist - 15) / 25));
+            // 확대 비율(%) 계산 (기준거리 15 = 100%)
+            const zoomPercent = Math.round((15 / dist) * 100);
+            document.getElementById('zoom-percent').innerText = `${zoomPercent}%`;
 
-            // 온도가 0도 이하일 때만 결정체 형성
-            let tempFactor = currentTemp <= 0 ? Math.min(1, Math.abs(currentTemp) / 5) : 0;
-            let crystalOpacity = zoomFade * tempFactor;
+            // 0도 이하일 때만 영하의 결정 구조 보임
+            let isFrozen = currentTemp <= 0;
+            let frozenOpacity = isFrozen ? Math.min(1, Math.abs(currentTemp) / 5) : 0;
 
-            // 미시 분자 투명도
+            // 가시성 알파값 정의 (배율 구간별)
+            let molAlpha = 0;
+            let needleAlpha = 0;
+            let crystalAlpha = 0;
+            let macroAlpha = 0;
+
+            if (zoomPercent >= 500) {
+                // 1단계: 미시 분자
+                molAlpha = 1;
+            } else if (zoomPercent >= 200) {
+                // 2단계: 현미경 가시 돋아남
+                let factor = (zoomPercent - 200) / 300;
+                molAlpha = factor;
+                needleAlpha = (1 - factor) * frozenOpacity;
+            } else if (zoomPercent >= 80) {
+                // 3단계: 정밀 눈 결정
+                let factor = (zoomPercent - 80) / 120;
+                needleAlpha = factor * frozenOpacity;
+                crystalAlpha = (1 - factor) * frozenOpacity;
+            } else {
+                // 4단계: 육안 관찰 (동그란 눈송이)
+                let factor = zoomPercent / 80;
+                crystalAlpha = factor * frozenOpacity;
+                macroAlpha = (1 - factor) * frozenOpacity;
+            }
+
+            // 알파 투명도 각각 적용
             molecules.forEach(mol => {
-                mol.children.forEach(atom => {
-                    atom.material.opacity = 1 - zoomFade;
-                });
+                mol.children.forEach(atom => atom.material.opacity = molAlpha);
             });
 
-            // 거시 눈 결정 투명도 (0도 초과 시 아예 사라짐)
+            needleGroup.children.forEach(n => n.material.opacity = needleAlpha);
+
             crystalGroup.traverse(child => {
-                if (child.isMesh) {
-                    child.material.opacity = crystalOpacity;
-                }
+                if (child.isMesh) child.material.opacity = crystalAlpha;
             });
+
+            macroSnowGroup.children.forEach(b => b.material.opacity = macroAlpha);
         }
 
-        // 8. UI 이벤트 핸들러
+        // 10. UI 이벤트 연결
         const tempSlider = document.getElementById('temp-slider');
         const tempValText = document.getElementById('temp-val');
         const countInput = document.getElementById('molecule-count');
@@ -307,7 +364,6 @@
             camera.position.setLength(val);
         });
 
-        // ▶ 재생 버튼: 4°C에서 온도가 점점 하강하며 결정이 결정화(성장)되는 모드 시작
         document.getElementById('btn-play').addEventListener('click', () => {
             isPlaying = true;
             isCooling = true;
@@ -325,23 +381,21 @@
             currentTemp = 4;
             tempSlider.value = 4;
             tempValText.innerText = '4°C';
-
             countInput.value = 6;
             initMolecules(6);
-
             camera.position.set(0, 0, 15);
             controls.target.set(0, 0, 0);
             controls.update();
         });
 
-        controls.addEventListener('change', updateVisibility);
+        controls.addEventListener('change', updateVisibilityAndZoomUI);
 
-        // 9. 루프 실행
+        // 11. 메인 애니메이션 루프
         function animate() {
             requestAnimationFrame(animate);
             updatePhysics();
             controls.update();
-            updateVisibility();
+            updateVisibilityAndZoomUI();
             renderer.render(scene, camera);
         }
         animate();
